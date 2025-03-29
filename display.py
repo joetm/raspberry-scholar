@@ -23,7 +23,7 @@ user_agent = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:136.0) Gecko/20100101 F
 try:
   from waveshare_epd import epd2in13_V4
   epd = epd2in13_V4.EPD()
-  IS_PI = False
+  IS_PI = True
   # logging.info("init and Clear")
   # epd.init()
 except:
