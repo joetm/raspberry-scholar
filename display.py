@@ -166,23 +166,28 @@ if (latest is not None) and (second is not None):
     print("Biweekly Increase:", biweekly_increase)
     print("Monthly Increase:", monthly_increase)
 
-  # update the display
-  image = Image.new('1', (epd.width, epd.height), 255)  # 255: clear the frame
-  draw = ImageDraw.Draw(image)
-  draw.rectangle([(2,2),(248,120)], outline=0)
-  draw.text((32, 3), citations, font=font_large, fill=0)
-  draw.text((95, 90), f"h = {hindex}", font=font_small, fill=0)
+    # update the display
+    image = Image.new('1', (epd.width, epd.height), 255)  # 255: clear the frame
+    draw = ImageDraw.Draw(image)
+    draw.rectangle([(2,2),(248,120)], outline=0)
+    draw.text((32, 3), citations, font=font_large, fill=0)
+    draw.text((95, 90), f"h = {hindex}", font=font_small, fill=0)
 
-  if IS_PI:
-    image = image.rotate(180) # rotate
-    epd.Clear(0xFF)
-    epd.display(epd.getbuffer(image))
-    epd.sleep()
-  else:
-    # Convert the image to a format matplotlib can display
-    # Save the image to a temporary file
+    if IS_PI:
+      image = image.rotate(180) # rotate
+      epd.Clear(0xFF)
+      epd.display(epd.getbuffer(image))
+      epd.sleep()
+
+
+  if not IS_PI:
+    # update the display
+    image = Image.new('1', (epd.width, epd.height), 255)  # 255: clear the frame
+    draw = ImageDraw.Draw(image)
+    draw.rectangle([(2,2),(248,120)], outline=0)
+    draw.text((32, 3), citations, font=font_large, fill=0)
+    draw.text((95, 90), f"h = {hindex}", font=font_small, fill=0)
     image.save("output.png")
-    # Open the image with the default viewer
     image.show()
 
 
