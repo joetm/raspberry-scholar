@@ -8,9 +8,29 @@ import json
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
-from fake_useragent import UserAgent
-ua = UserAgent(platforms='pc')
-user_agent = ua.random
+# from fake_useragent import UserAgent
+# ua = UserAgent(platforms='pc')
+# user_agent = ua.random
+user_agent = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0"
+
+
+# libdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'lib')
+# if os.path.exists(libdir): sys.path.append(libdir)
+
+from waveshare_epd import epd2in13_V4
+import time
+import logging
+from PIL import Image,ImageDraw,ImageFont
+
+epd = epd2in13_V4.EPD()
+# logging.info("init and Clear")
+# epd.init()
+
+
+# Drawing on the image
+picdir = './'
+font15 = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), 15)
+font_large = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), 80)
 
 
 # ---
@@ -101,35 +121,50 @@ for log in logs: log["timestamp"] = datetime.fromisoformat(log["timestamp"])
 logs.sort(key=lambda x: x["timestamp"])
 
 # Get latest values
-latest = logs[-1] if logs else None
-second = logs[-2] if logs else None
+try: latest = logs[-1]
+except: latest = None
+try: second = logs[-2]
+except: second = None
+
 
 # check if changes
-if latest['citations'] == second['citations']:
-  ### NOTHING NEW
-  print(f'No changes [{latest["citations"]} citations]')
-else:
-  ### NEW CITATIONS
-  diff = latest['citations'] - second['citations']
-  print(f"{diff} new citations!")
+try:
+        if latest['citations'] == second['citations']:
+          ### NOTHING NEW
+          print(f'No changes [{latest["citations"]} citations]')
 
-  # time windows
-  now = datetime.now()
-  log_week = get_closest_log(now - timedelta(weeks=1))
-  log_biweek = get_closest_log(now - timedelta(weeks=2))
-  log_month = get_closest_log(now - timedelta(days=30))
+        else:
+          ### NEW CITATIONS
+          epd.Clear(0xFF)
 
-  weekly_increase = compute_increase(latest, log_week)
-  biweekly_increase = compute_increase(latest, log_biweek)
-  monthly_increase = compute_increase(latest, log_month)
+          diff = latest['citations'] - second['citations']
+          print(f"{diff} new citations!")
 
-  # Print results
-  print("Weekly Increase:", weekly_increase)
-  print("Biweekly Increase:", biweekly_increase)
-  print("Monthly Increase:", monthly_increase)
+          # time windows
+          now = datetime.now()
+          log_week = get_closest_log(now - timedelta(weeks=1))
+          log_biweek = get_closest_log(now - timedelta(weeks=2))
+          log_month = get_closest_log(now - timedelta(days=30))
 
-  # TODO: update the display
+          weekly_increase = compute_increase(latest, log_week)
+          biweekly_increase = compute_increase(latest, log_biweek)
+          monthly_increase = compute_increase(latest, log_month)
 
+          # Print results
+          print("Weekly Increase:", weekly_increase)
+          print("Biweekly Increase:", biweekly_increase)
+          print("Monthly Increase:", monthly_increase)
 
+          # TODO: update the display
 
+          citations = str(latest["citations"])
+          image = Image.new('1', (epd.height, epd.width), 255)  # 255: clear the frame
+          draw = ImageDraw.Draw(image)
+          draw.rectangle([(2,2),(248,120)],outline = 0)
+          draw.text((10, 13), citations, font=font_large, fill=0)
+          image = image.rotate(180) # rotate
+          epd.display(epd.getbuffer(image))
+          epd.sleep()
 
+except:
+        pass
