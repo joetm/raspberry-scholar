@@ -5,9 +5,12 @@
 import os
 import sys
 import json
+# import time
+# import logging
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+from PIL import Image, ImageDraw, ImageFont
 # from fake_useragent import UserAgent
 # ua = UserAgent(platforms='pc')
 # user_agent = ua.random
@@ -17,19 +20,24 @@ user_agent = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:136.0) Gecko/20100101 F
 # libdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'lib')
 # if os.path.exists(libdir): sys.path.append(libdir)
 
-from waveshare_epd import epd2in13_V4
-import time
-import logging
-from PIL import Image,ImageDraw,ImageFont
-
-epd = epd2in13_V4.EPD()
-# logging.info("init and Clear")
-# epd.init()
+try:
+  from waveshare_epd import epd2in13_V4
+  epd = epd2in13_V4.EPD()
+  IS_PI = False
+  # logging.info("init and Clear")
+  # epd.init()
+except:
+  IS_PI = False
+  class FAKE_EPD:
+      def __init__(self, width, height):
+          self.width = width
+          self.height = height
+  epd = FAKE_EPD(width=250, height=122)
 
 
 # Drawing on the image
 picdir = './'
-font15 = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), 15)
+font_small = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), 24)
 font_large = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), 80)
 
 
@@ -114,6 +122,8 @@ if stats:
   res['hindex'] = int(stats[2].text)
   log_result(res['citations'], res['hindex'])
 
+  print(f"Citations: {res['citations']}")
+  print(f"H-index: {res['hindex']}")
 
 
 # Convert timestamps to datetime objects and sort by time
@@ -126,45 +136,53 @@ except: latest = None
 try: second = logs[-2]
 except: second = None
 
-
 # check if changes
-try:
-        if latest['citations'] == second['citations']:
-          ### NOTHING NEW
-          print(f'No changes [{latest["citations"]} citations]')
+if (latest is not None) and (second is not None):
 
-        else:
-          ### NEW CITATIONS
-          epd.Clear(0xFF)
+  citations = str(latest["citations"])
+  hindex = str(latest["hindex"])
 
-          diff = latest['citations'] - second['citations']
-          print(f"{diff} new citations!")
+  if latest['citations'] == second['citations']:
+    ### NOTHING NEW
+    print(f'No changes [{latest["citations"]} citations]')
 
-          # time windows
-          now = datetime.now()
-          log_week = get_closest_log(now - timedelta(weeks=1))
-          log_biweek = get_closest_log(now - timedelta(weeks=2))
-          log_month = get_closest_log(now - timedelta(days=30))
+  else:
+    ### NEW CITATIONS
+    diff = latest['citations'] - second['citations']
+    print(f"{diff} new citations!")
 
-          weekly_increase = compute_increase(latest, log_week)
-          biweekly_increase = compute_increase(latest, log_biweek)
-          monthly_increase = compute_increase(latest, log_month)
+    # time windows
+    now = datetime.now()
+    log_week = get_closest_log(now - timedelta(weeks=1))
+    log_biweek = get_closest_log(now - timedelta(weeks=2))
+    log_month = get_closest_log(now - timedelta(days=30))
 
-          # Print results
-          print("Weekly Increase:", weekly_increase)
-          print("Biweekly Increase:", biweekly_increase)
-          print("Monthly Increase:", monthly_increase)
+    weekly_increase = compute_increase(latest, log_week)
+    biweekly_increase = compute_increase(latest, log_biweek)
+    monthly_increase = compute_increase(latest, log_month)
 
-          # TODO: update the display
+    # Print results
+    print("Weekly Increase:", weekly_increase)
+    print("Biweekly Increase:", biweekly_increase)
+    print("Monthly Increase:", monthly_increase)
 
-          citations = str(latest["citations"])
-          image = Image.new('1', (epd.height, epd.width), 255)  # 255: clear the frame
-          draw = ImageDraw.Draw(image)
-          draw.rectangle([(2,2),(248,120)],outline = 0)
-          draw.text((10, 13), citations, font=font_large, fill=0)
-          image = image.rotate(180) # rotate
-          epd.display(epd.getbuffer(image))
-          epd.sleep()
+  # update the display
+  image = Image.new('1', (epd.width, epd.height), 255)  # 255: clear the frame
+  draw = ImageDraw.Draw(image)
+  draw.rectangle([(2,2),(248,120)], outline=0)
+  draw.text((32, 3), citations, font=font_large, fill=0)
+  draw.text((95, 90), f"h = {hindex}", font=font_small, fill=0)
 
-except:
-        pass
+  if IS_PI:
+    image = image.rotate(180) # rotate
+    epd.Clear(0xFF)
+    epd.display(epd.getbuffer(image))
+    epd.sleep()
+  else:
+    # Convert the image to a format matplotlib can display
+    # Save the image to a temporary file
+    image.save("output.png")
+    # Open the image with the default viewer
+    image.show()
+
+
