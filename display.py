@@ -34,11 +34,53 @@ except:
           self.height = height
   epd = FAKE_EPD(width=250, height=122)
 
-
 # Drawing on the image
 picdir = './'
 font_small = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), 24)
 font_large = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), 80)
+
+
+
+
+
+# DEV
+# citations = str(1227)
+# hindex = str(14)
+# weekly_increase = {'citations_increase': 50, 'hindex_increase': 1}
+# biweekly_increase = {'citations_increase': 75, 'hindex_increase': 1}
+# monthly_increase = {'citations_increase': 150, 'hindex_increase': None}
+# image = Image.new('1', (epd.width, epd.height), 255)  # 255: clear the frame
+# draw = ImageDraw.Draw(image)
+# draw.rectangle([(2,2),(248,120)], outline=0)
+# draw.text((5, 0), citations, font=font_large, fill=0)
+# draw.line([(2,90),(248,90)])
+# # draw.text((5, 90), f"h = {hindex}", font=font_small, fill=0)
+# draw.text((190, 15), f"h.{hindex}", font=font_small, fill=0)
+# wsign = '+' if weekly_increase['citations_increase'] > 0 else '-'
+# bisign = '+' if biweekly_increase['citations_increase'] > 0 else '-'
+# msign = '+' if monthly_increase['citations_increase'] > 0 else '-'
+# draw.text((15, 90), f"w{wsign}{str(weekly_increase['citations_increase'])}", font=font_small, fill=0)
+# draw.text((85, 90), f"m{bisign}{str(biweekly_increase['citations_increase'])}", font=font_small, fill=0)
+# draw.text((165, 90), f"m{msign}{str(monthly_increase['citations_increase'])}", font=font_small, fill=0)
+
+# fiveyears = [ 49, 70, 321, 597, 118 ]
+# barw = 5
+# pad = 5
+# firstbar = True
+# for i, y in enumerate(fiveyears):
+#   wstart = 185 + pad + i*barw + i*pad
+#   wend = 185 + barw + i*barw + i*pad + 5
+#   barend = 75 - abs(20 * ( max(fiveyears) - y ) / max(fiveyears))
+#   print(y, barend)
+#   draw.rectangle([(wstart, 75),(wend, 55 + (75 - barend))],  fill="black", outline=0)
+
+# image.save("output.png")
+# image.show()
+# sys.exit()
+
+
+
+
 
 
 # ---
@@ -121,9 +163,18 @@ if stats:
   res['citations'] = int(stats[0].text)
   res['hindex'] = int(stats[2].text)
   log_result(res['citations'], res['hindex'])
-
   print(f"Citations: {res['citations']}")
   print(f"H-index: {res['hindex']}")
+
+
+fiveyears = []
+bars_box = soup.select("div.gsc_md_hist_b a.gsc_g_a span.gsc_g_al") 
+if bars_box:
+  for bar in bars_box:
+    count = int(bar.text)
+    fiveyears.append(count)
+fiveyears = fiveyears[-5:]
+# print("Last five years", fiveyears)
 
 
 # Convert timestamps to datetime objects and sort by time
@@ -142,6 +193,16 @@ if (latest is not None) and (second is not None):
   citations = str(latest["citations"])
   hindex = str(latest["hindex"])
 
+  # time windows
+  now = datetime.now()
+  log_week = get_closest_log(now - timedelta(weeks=1))
+  log_biweek = get_closest_log(now - timedelta(weeks=2))
+  log_month = get_closest_log(now - timedelta(days=30))
+
+  weekly_increase = compute_increase(latest, log_week)
+  biweekly_increase = compute_increase(latest, log_biweek)
+  monthly_increase = compute_increase(latest, log_month)
+
   if latest['citations'] == second['citations']:
     ### NOTHING NEW
     print(f'No changes [{latest["citations"]} citations]')
@@ -151,16 +212,6 @@ if (latest is not None) and (second is not None):
     diff = latest['citations'] - second['citations']
     print(f"{diff} new citations!")
 
-    # time windows
-    now = datetime.now()
-    log_week = get_closest_log(now - timedelta(weeks=1))
-    log_biweek = get_closest_log(now - timedelta(weeks=2))
-    log_month = get_closest_log(now - timedelta(days=30))
-
-    weekly_increase = compute_increase(latest, log_week)
-    biweekly_increase = compute_increase(latest, log_biweek)
-    monthly_increase = compute_increase(latest, log_month)
-
     # Print results
     print("Weekly Increase:", weekly_increase)
     print("Biweekly Increase:", biweekly_increase)
@@ -168,10 +219,40 @@ if (latest is not None) and (second is not None):
 
     # update the display
     image = Image.new('1', (epd.height, epd.width), 255)  # 255: clear the frame
+    # draw = ImageDraw.Draw(image)
+    # draw.rectangle([(2,2),(248,120)], outline=0)
+    # draw.text((32, 3), citations, font=font_large, fill=0)
+    # draw.text((95, 90), f"h = {hindex}", font=font_small, fill=0)
     draw = ImageDraw.Draw(image)
     draw.rectangle([(2,2),(248,120)], outline=0)
-    draw.text((32, 3), citations, font=font_large, fill=0)
-    draw.text((95, 90), f"h = {hindex}", font=font_small, fill=0)
+    draw.text((5, 0), citations, font=font_large, fill=0)
+    draw.line([(2,90),(248,90)])
+    # draw.text((5, 90), f"h = {hindex}", font=font_small, fill=0)
+    draw.text((190, 15), f"h.{hindex}", font=font_small, fill=0)
+    try:
+      wsign = '+' if weekly_increase['citations_increase'] > 0 else '-'
+    except: wsign = ' '
+    try:
+      bisign = '+' if biweekly_increase['citations_increase'] > 0 else '-'
+    except: bisign = ' '
+    try:
+      msign = '+' if monthly_increase['citations_increase'] > 0 else '-'
+    except: msign = ' '
+    draw.text((15, 90), f"w{wsign}{str(weekly_increase['citations_increase'])}", font=font_small, fill=0)
+    try:
+      draw.text((85, 90), f"m{bisign}{str(biweekly_increase['citations_increase'])}", font=font_small, fill=0)
+    except: pass
+    try:
+      draw.text((165, 90), f"m{msign}{str(monthly_increase['citations_increase'])}", font=font_small, fill=0)
+    except: pass
+    barw, pad = 5, 5
+    firstbar = True
+    for i, y in enumerate(fiveyears):
+      wstart = 185 + pad + i*barw + i*pad
+      wend = 185 + barw + i*barw + i*pad + 5
+      barend = 75 - abs(20 * ( max(fiveyears) - y ) / max(fiveyears))
+      print(y, barend)
+      draw.rectangle([(wstart, 75),(wend, 55 + (75 - barend))],  fill="black", outline=0)
 
     if IS_PI:
       image = image.rotate(180) # rotate
@@ -182,12 +263,45 @@ if (latest is not None) and (second is not None):
 
   if not IS_PI:
     # update the display
+    # image = Image.new('1', (epd.width, epd.height), 255)  # 255: clear the frame
+    # draw = ImageDraw.Draw(image)
+    # draw.rectangle([(2,2),(248,120)], outline=0)
+    # draw.text((32, 3), citations, font=font_large, fill=0)
+    # draw.text((95, 90), f"h = {hindex}", font=font_small, fill=0)
+    # image.save("output.png")
+    # image.show()
     image = Image.new('1', (epd.width, epd.height), 255)  # 255: clear the frame
     draw = ImageDraw.Draw(image)
     draw.rectangle([(2,2),(248,120)], outline=0)
-    draw.text((32, 3), citations, font=font_large, fill=0)
-    draw.text((95, 90), f"h = {hindex}", font=font_small, fill=0)
+    draw.text((5, 0), citations, font=font_large, fill=0)
+    draw.line([(2,90),(248,90)])
+    # draw.text((5, 90), f"h = {hindex}", font=font_small, fill=0)
+    draw.text((190, 15), f"h.{hindex}", font=font_small, fill=0)
+    try:
+      wsign = '+' if weekly_increase['citations_increase'] > 0 else '-'
+    except: wsign = ' '
+    try:
+      bisign = '+' if biweekly_increase['citations_increase'] > 0 else '-'
+    except: bisign = ' '
+    try:
+      msign = '+' if monthly_increase['citations_increase'] > 0 else '-'
+    except: msign = ' '
+    draw.text((15, 90), f"w{wsign}{str(weekly_increase['citations_increase'])}", font=font_small, fill=0)
+    try:
+      draw.text((85, 90), f"m{bisign}{str(biweekly_increase['citations_increase'])}", font=font_small, fill=0)
+    except: pass
+    try:
+      draw.text((165, 90), f"m{msign}{str(monthly_increase['citations_increase'])}", font=font_small, fill=0)
+    except: pass
+    barw, pad = 5, 5
+    firstbar = True
+    for i, y in enumerate(fiveyears):
+      wstart = 185 + pad + i*barw + i*pad
+      wend = 185 + barw + i*barw + i*pad + 5
+      barend = 75 - abs(20 * ( max(fiveyears) - y ) / max(fiveyears))
+      print(y, barend)
+      draw.rectangle([(wstart, 75),(wend, 55 + (75 - barend))],  fill="black", outline=0)
+
     image.save("output.png")
     image.show()
-
 
