@@ -80,9 +80,6 @@ font_large = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), 80)
 
 
 
-
-
-
 # ---
 scholar_profile = 'ucO_QYQAAAAJ'
 scholar_url = f'https://scholar.google.com/citations?user={scholar_profile}&hl=en'
@@ -240,7 +237,7 @@ if (latest is not None) and (second is not None):
     except: msign = ' '
     draw.text((15, 90), f"w{wsign}{str(weekly_increase['citations_increase'])}", font=font_small, fill=0)
     try:
-      draw.text((85, 90), f"m{bisign}{str(biweekly_increase['citations_increase'])}", font=font_small, fill=0)
+      draw.text((85, 90), f"b{bisign}{str(biweekly_increase['citations_increase'])}", font=font_small, fill=0)
     except: pass
     try:
       draw.text((165, 90), f"m{msign}{str(monthly_increase['citations_increase'])}", font=font_small, fill=0)
@@ -270,6 +267,7 @@ if (latest is not None) and (second is not None):
     # draw.text((95, 90), f"h = {hindex}", font=font_small, fill=0)
     # image.save("output.png")
     # image.show()
+
     image = Image.new('1', (epd.width, epd.height), 255)  # 255: clear the frame
     draw = ImageDraw.Draw(image)
     draw.rectangle([(2,2),(248,120)], outline=0)
@@ -288,7 +286,7 @@ if (latest is not None) and (second is not None):
     except: msign = ' '
     draw.text((15, 90), f"w{wsign}{str(weekly_increase['citations_increase'])}", font=font_small, fill=0)
     try:
-      draw.text((85, 90), f"m{bisign}{str(biweekly_increase['citations_increase'])}", font=font_small, fill=0)
+      draw.text((85, 90), f"b{bisign}{str(biweekly_increase['citations_increase'])}", font=font_small, fill=0)
     except: pass
     try:
       draw.text((165, 90), f"m{msign}{str(monthly_increase['citations_increase'])}", font=font_small, fill=0)
