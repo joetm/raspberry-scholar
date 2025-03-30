@@ -167,7 +167,7 @@ if (latest is not None) and (second is not None):
     print("Monthly Increase:", monthly_increase)
 
     # update the display
-    image = Image.new('1', (epd.width, epd.height), 255)  # 255: clear the frame
+    image = Image.new('1', (epd.height, epd.width), 255)  # 255: clear the frame
     draw = ImageDraw.Draw(image)
     draw.rectangle([(2,2),(248,120)], outline=0)
     draw.text((32, 3), citations, font=font_large, fill=0)
