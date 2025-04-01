@@ -49,7 +49,7 @@ class DISPLAY:
     else:
       self.image = Image.new('1', (self.epd.width, self.epd.height), 255)  # 255: clear the frame
 
-  def render(self, citations, hindex, diff, weekly_increase, biweekly_increase, monthly_increase):
+  def render(self, citations, hindex, diff, weekly_increase, monthly_increase):
     # image = Image.new('1', (epd.width, epd.height), 255)  # 255: clear the frame
     # draw = ImageDraw.Draw(image)
     # draw.rectangle([(2,2),(248,120)], outline=0)
@@ -64,9 +64,12 @@ class DISPLAY:
     draw = ImageDraw.Draw(self.image)
     draw.rectangle([(2,2),(248,120)], outline=0)
     draw.text((5, 0), str(citations), font=font_large, fill=0)
-    draw.line([(2,90),(248,90)])
+
+    draw.line([(2,90), (185,90)])
+    draw.line([(185,2),(185,120)])
+
     # draw.text((5, 90), f"h = {hindex}", font=font_small, fill=0)
-    draw.text((190, 15), f"h.{str(hindex)}", font=font_small, fill=0)
+    draw.text((195, 15), f"h.{str(hindex)}", font=font_small, fill=0)
 
     # dev
     if monthly_increase['citations_increase'] is None: monthly_increase['citations_increase'] = 0
@@ -75,13 +78,13 @@ class DISPLAY:
     except: dsign = ' '
     try: wsign = '+' if weekly_increase['citations_increase'] >= 0 else '-'
     except: wsign = ' '
-    try: bisign = '+' if biweekly_increase['citations_increase'] >= 0 else '-'
-    except: bisign = ' '
+    # try: bisign = '+' if biweekly_increase['citations_increase'] >= 0 else '-'
+    # except: bisign = ' '
     try: msign = '+' if monthly_increase['citations_increase'] >= 0 else '-'
     except: msign = ' '
 
 
-    longtext = f"{dsign}{str(diff)} w{wsign}{str(weekly_increase['citations_increase'])} 2w{bisign}{str(biweekly_increase['citations_increase'])} m{msign}{str(monthly_increase['citations_increase'])}"
+    longtext = f"{dsign}{str(diff)}  w{wsign}{str(weekly_increase['citations_increase'])}  m{msign}{str(monthly_increase['citations_increase'])}"
     draw.text((15, 92), longtext, font=font_small, fill=0)
     # draw.text((15, 90), f"{dsign}{str(diff)}", font=font_small, fill=0)
     # try:
@@ -96,11 +99,11 @@ class DISPLAY:
 
     barw, pad = 5, 5
     for i, y in enumerate(fiveyears):
-      wstart = 185 + pad + i*barw + i*pad
-      wend = 185 + barw + i*barw + i*pad + 5
-      barend = 75 - abs(20 * ( max(fiveyears) - y ) / max(fiveyears))
+      wstart = 190 + pad + i*barw + i*pad
+      wend = 190 + barw + i*barw + i*pad + 5
+      barend = 115 - abs(55 * ( max(fiveyears) - y ) / max(fiveyears))
       print(y, barend)
-      draw.rectangle([(wstart, 75),(wend, 55 + (75 - barend))],  fill="black", outline=0)
+      draw.rectangle([(wstart, 115),(wend, 55 + (115 - barend))],  fill="black", outline=0)
     if self.is_pi:
       image = image.rotate(180) # rotate
       self.epd.init()
@@ -251,13 +254,13 @@ if (latest is not None) and (second is not None):
 
     # update the display
     epaper = DISPLAY(epd=epd, is_pi=IS_PI)
-    epaper.render(citations, hindex, diff, weekly_increase, biweekly_increase, monthly_increase)
+    epaper.render(citations, hindex, diff, weekly_increase, monthly_increase)
 
 
   # DEV = always pop up image on PC
   if not IS_PI:
     # output an image
     epaper = DISPLAY(epd=epd, is_pi=IS_PI)
-    epaper.render(citations, hindex, diff, weekly_increase, biweekly_increase, monthly_increase)
+    epaper.render(citations, hindex, diff, weekly_increase, monthly_increase)
 
 
