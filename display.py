@@ -71,8 +71,10 @@ class DISPLAY:
     # draw.text((5, 90), f"h = {hindex}", font=font_small, fill=0)
     draw.text((195, 15), f"h.{str(hindex)}", font=font_small, fill=0)
 
-    # dev
-    if monthly_increase['citations_increase'] is None: monthly_increase['citations_increase'] = 0
+    if weekly_increase['citations_increase'] is None:
+      weekly_increase['citations_increase'] = 0
+    if monthly_increase['citations_increase'] is None:
+      monthly_increase['citations_increase'] = 0
 
     try: dsign = '+' if diff >= 0 else '-'
     except: dsign = ' '
@@ -105,7 +107,7 @@ class DISPLAY:
       print(y, barend)
       draw.rectangle([(wstart, 115),(wend, 55 + (115 - barend))],  fill="black", outline=0)
     if self.is_pi:
-      image = image.rotate(180) # rotate
+      self.image = self.image.rotate(180) # rotate
       self.epd.init()
       self.epd.Clear(0xFF)
       self.epd.display(epd.getbuffer(self.image))
