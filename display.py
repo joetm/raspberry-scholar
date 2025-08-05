@@ -32,11 +32,12 @@ except:
           self.width = width
           self.height = height
   epd = FAKE_EPD(width=250, height=122)
+# print("IS_PI", IS_PI)
 
 # Drawing on the image
 picdir = './'
-font_small = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), 22)
-font_large = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), 80)
+font_small = ImageFont.truetype(os.path.join(picdir, '/home/jonas/scholar/Font.ttc'), 22)
+font_large = ImageFont.truetype(os.path.join(picdir, '/home/jonas/scholar/Font.ttc'), 80)
 
 
 
@@ -62,19 +63,19 @@ class DISPLAY:
     # draw.text((32, 3), citations, font=font_large, fill=0)
     # draw.text((95, 90), f"h = {hindex}", font=font_small, fill=0)
     draw = ImageDraw.Draw(self.image)
-    draw.rectangle([(2,2),(248,120)], outline=0)
+
+    draw.rectangle([(1,1),(249,121)], outline=0)
+
     draw.text((5, 0), str(citations), font=font_large, fill=0)
 
-    draw.line([(2,90), (185,90)])
-    draw.line([(185,2),(185,120)])
+    # draw.line([(2,90), (185,90)])
+    # draw.line([(185,2),(185,120)])
 
     # draw.text((5, 90), f"h = {hindex}", font=font_small, fill=0)
     draw.text((195, 15), f"h.{str(hindex)}", font=font_small, fill=0)
 
-    if weekly_increase['citations_increase'] is None:
-      weekly_increase['citations_increase'] = 0
-    if monthly_increase['citations_increase'] is None:
-      monthly_increase['citations_increase'] = 0
+    # dev
+    if monthly_increase['citations_increase'] is None: monthly_increase['citations_increase'] = 0
 
     try: dsign = '+' if diff >= 0 else '-'
     except: dsign = ' '
@@ -85,8 +86,11 @@ class DISPLAY:
     try: msign = '+' if monthly_increase['citations_increase'] >= 0 else '-'
     except: msign = ' '
 
-
-    longtext = f"{dsign}{str(diff)}  w{wsign}{str(weekly_increase['citations_increase'])}  m{msign}{str(monthly_increase['citations_increase'])}"
+    if weekly_increase['citations_increase'] is None:
+      weekly_increase['citations_increase'] = 0
+    if monthly_increase['citations_increase'] is None:
+      monthly_increase['citations_increase'] = 0
+    longtext = f"{dsign}{str(abs(diff))}  w{wsign}{str(abs(weekly_increase['citations_increase']))}  m{msign}{str(abs(monthly_increase['citat>
     draw.text((15, 92), longtext, font=font_small, fill=0)
     # draw.text((15, 90), f"{dsign}{str(diff)}", font=font_small, fill=0)
     # try:
@@ -104,7 +108,7 @@ class DISPLAY:
       wstart = 190 + pad + i*barw + i*pad
       wend = 190 + barw + i*barw + i*pad + 5
       barend = 115 - abs(55 * ( max(fiveyears) - y ) / max(fiveyears))
-      print(y, barend)
+      # print(y, barend)
       draw.rectangle([(wstart, 115),(wend, 55 + (115 - barend))],  fill="black", outline=0)
     if self.is_pi:
       self.image = self.image.rotate(180) # rotate
@@ -116,14 +120,11 @@ class DISPLAY:
       self.image.save("output.png")
       self.image.show()
 
-
-
-
 # ---
 scholar_profile = 'ucO_QYQAAAAJ'
 scholar_url = f'https://scholar.google.com/citations?user={scholar_profile}&hl=en'
-result_file = r'./result.json'
-LOG_FILE = "logs.json"
+result_file = r'/home/jonas/scholar/result.json'
+LOG_FILE = "/home/jonas/scholar/logs.json"
 # ---
 
 
@@ -160,11 +161,15 @@ def get_closest_log(past_time):
   return max((log for log in logs if log["timestamp"] <= past_time), 
     key=lambda x: x["timestamp"], default=None)
 
-
+def get_earliest_log(past_time):
+    eligible = [log for log in logs if log["timestamp"] <= past_time]
+    if not eligible:
+        return logs[0]  # fallback to oldest
+    return max(eligible, key=lambda x: x["timestamp"])
 
 print(f"Scraping {scholar_url}...")
 
-with open('cookie.txt', 'rt') as f: cookie = f.read()
+with open('/home/jonas/scholar/cookie.txt', 'rt') as f: cookie = f.read()
 headers = {
   'User-Agent': user_agent,
   'referer': 'https://www.google.com/',
@@ -202,7 +207,6 @@ if stats:
   print(f"Citations: {res['citations']}")
   print(f"H-index: {res['hindex']}")
 
-
 fiveyears = []
 bars_box = soup.select("div.gsc_md_hist_b a.gsc_g_a span.gsc_g_al") 
 if bars_box:
@@ -233,7 +237,7 @@ if (latest is not None) and (second is not None):
   now = datetime.now()
   log_week = get_closest_log(now - timedelta(weeks=1))
   log_biweek = get_closest_log(now - timedelta(weeks=2))
-  log_month = get_closest_log(now - timedelta(days=30))
+  log_month = get_earliest_log(now - timedelta(days=30))
 
   weekly_increase = compute_increase(latest, log_week)
   biweekly_increase = compute_increase(latest, log_biweek)
@@ -255,6 +259,7 @@ if (latest is not None) and (second is not None):
     print("Monthly Increase:", monthly_increase)
 
     # update the display
+    # print("Update display...")
     epaper = DISPLAY(epd=epd, is_pi=IS_PI)
     epaper.render(citations, hindex, diff, weekly_increase, monthly_increase)
 
@@ -262,7 +267,6 @@ if (latest is not None) and (second is not None):
   # DEV = always pop up image on PC
   if not IS_PI:
     # output an image
+    print("Output image...")
     epaper = DISPLAY(epd=epd, is_pi=IS_PI)
     epaper.render(citations, hindex, diff, weekly_increase, monthly_increase)
-
-
