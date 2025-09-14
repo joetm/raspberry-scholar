@@ -7,6 +7,7 @@ import sys
 import json
 # import time
 # import logging
+import argparse
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
@@ -20,24 +21,39 @@ user_agent = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:136.0) Gecko/20100101 F
 # libdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'lib')
 # if os.path.exists(libdir): sys.path.append(libdir)
 
-try:
-  from waveshare_epd import epd2in13_V4
-  epd = epd2in13_V4.EPD()
-  IS_PI = True
-  # logging.info("init and Clear")
-except:
-  IS_PI = False
-  class FAKE_EPD:
-      def __init__(self, width, height):
-          self.width = width
-          self.height = height
-  epd = FAKE_EPD(width=250, height=122)
-# print("IS_PI", IS_PI)
+BASEDIR = os.path.join(os.path.dirname(os.path.realpath(__file__)))
 
-# Drawing on the image
+parser = argparse.ArgumentParser()
+parser.add_argument("--dev", dest="IS_DEV", action="store_true", help="Dev mode: output image")
+args = parser.parse_args()
+IS_DEV = args.IS_DEV
+print("DEV", IS_DEV)
+
+class FAKE_EPD:
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+
+if not IS_DEV:
+  try:
+    from waveshare_epd import epd2in13_V4
+    epd = epd2in13_V4.EPD()
+    IS_PI = True
+    # logging.info("init and Clear")
+  except:
+    IS_DEV = True
+    pass
+
+if IS_DEV:
+    IS_PI = False
+    epd = FAKE_EPD(width=250, height=122)
+print("IS_PI", IS_PI)
+
+
+
 picdir = './'
-font_small = ImageFont.truetype(os.path.join(picdir, '/home/jonas/scholar/Font.ttc'), 22)
-font_large = ImageFont.truetype(os.path.join(picdir, '/home/jonas/scholar/Font.ttc'), 80)
+font_small = ImageFont.truetype(os.path.join(BASEDIR, 'Font.ttc'), 22)
+font_large = ImageFont.truetype(os.path.join(BASEDIR, 'Font.ttc'), 80)
 
 
 
@@ -86,11 +102,7 @@ class DISPLAY:
     try: msign = '+' if monthly_increase['citations_increase'] >= 0 else '-'
     except: msign = ' '
 
-    if weekly_increase['citations_increase'] is None:
-      weekly_increase['citations_increase'] = 0
-    if monthly_increase['citations_increase'] is None:
-      monthly_increase['citations_increase'] = 0
-    longtext = f"{dsign}{str(abs(diff))}  w{wsign}{str(abs(weekly_increase['citations_increase']))}  m{msign}{str(abs(monthly_increase['citat>
+    longtext = f"{dsign}{str(abs(diff))}  w{wsign}{str(abs(weekly_increase['citations_increase']))}  m{msign}{str(abs(monthly_increase['citations_increase']))}"
     draw.text((15, 92), longtext, font=font_small, fill=0)
     # draw.text((15, 90), f"{dsign}{str(diff)}", font=font_small, fill=0)
     # try:
@@ -103,13 +115,19 @@ class DISPLAY:
     #   draw.text((165, 90), f"m{msign}{str(monthly_increase['citations_increase'])}", font=font_small, fill=0)
     # except: pass
 
-    barw, pad = 5, 5
+    print(fiveyears)
+
+    barw, pad, H = 5, 5, 65
+    minv, maxv = min(fiveyears), max(fiveyears)
     for i, y in enumerate(fiveyears):
-      wstart = 190 + pad + i*barw + i*pad
-      wend = 190 + barw + i*barw + i*pad + 5
-      barend = 115 - abs(55 * ( max(fiveyears) - y ) / max(fiveyears))
-      # print(y, barend)
-      draw.rectangle([(wstart, 115),(wend, 55 + (115 - barend))],  fill="black", outline=0)
+        x0 = 190 + pad + i*(barw+pad)
+        x1 = x0 + barw
+        y1 = 115
+        scale = (y - minv) / (maxv - minv) if maxv > minv else 0
+        y0 = y1 - int(H * scale)
+        draw.rectangle([(x0, y0), (x1, y1)], fill="black", outline=0)
+
+
     if self.is_pi:
       self.image = self.image.rotate(180) # rotate
       self.epd.init()
@@ -123,8 +141,8 @@ class DISPLAY:
 # ---
 scholar_profile = 'ucO_QYQAAAAJ'
 scholar_url = f'https://scholar.google.com/citations?user={scholar_profile}&hl=en'
-result_file = r'/home/jonas/scholar/result.json'
-LOG_FILE = "/home/jonas/scholar/logs.json"
+result_file = os.path.join(BASEDIR, 'result.json')
+LOG_FILE = os.path.join(BASEDIR, "logs.json")
 # ---
 
 
@@ -154,7 +172,7 @@ def compute_increase(latest, past_log):
       "citations_increase": latest["citations"] - past_log["citations"],
       "hindex_increase": latest["hindex"] - past_log["hindex"]
     }
-  return {"citations_increase": None, "hindex_increase": None}
+  return {"citations_increase": 0, "hindex_increase": 0}
 
 # Function to get the closest log entry before a given time
 def get_closest_log(past_time):
@@ -169,7 +187,8 @@ def get_earliest_log(past_time):
 
 print(f"Scraping {scholar_url}...")
 
-with open('/home/jonas/scholar/cookie.txt', 'rt') as f: cookie = f.read()
+cookie_file = os.path.join(BASEDIR, 'cookie.txt')
+with open(cookie_file, 'rt') as f: cookie = f.read()
 headers = {
   'User-Agent': user_agent,
   'referer': 'https://www.google.com/',
@@ -228,45 +247,48 @@ try: second = logs[-2]
 except: second = None
 
 # check if changes
-if (latest is not None) and (second is not None):
+if (latest is None) and (second is None):
+  print("Not enough log entries. Exiting.")
+  sys.exit()
 
-  citations = str(latest["citations"])
-  hindex = str(latest["hindex"])
+citations = str(latest["citations"])
+hindex = str(latest["hindex"])
 
-  # time windows
-  now = datetime.now()
-  log_week = get_closest_log(now - timedelta(weeks=1))
-  log_biweek = get_closest_log(now - timedelta(weeks=2))
-  log_month = get_earliest_log(now - timedelta(days=30))
+# time windows
+now = datetime.now()
+log_week = get_closest_log(now - timedelta(weeks=1))
+log_biweek = get_closest_log(now - timedelta(weeks=2))
+log_month = get_earliest_log(now - timedelta(days=30))
 
-  weekly_increase = compute_increase(latest, log_week)
-  biweekly_increase = compute_increase(latest, log_biweek)
-  monthly_increase = compute_increase(latest, log_month)
+weekly_increase = compute_increase(latest, log_week)
+biweekly_increase = compute_increase(latest, log_biweek)
+monthly_increase = compute_increase(latest, log_month)
 
-  if latest['citations'] == second['citations']:
-    ### NOTHING NEW
-    print(f'No changes [{latest["citations"]} citations]')
-    diff = 0
+if latest['citations'] == second['citations']:
+  ### NOTHING NEW
+  print(f'No changes [{latest["citations"]} citations]')
+  diff = 0
 
-  else:
-    ### NEW CITATIONS
-    diff = latest['citations'] - second['citations']
-    print(f"{diff} new citations!")
+else:
+  ### NEW CITATIONS
+  diff = latest['citations'] - second['citations']
+  print(f"{diff} new citations!")
 
-    # Print results
-    print("Weekly Increase:", weekly_increase)
-    print("Biweekly Increase:", biweekly_increase)
-    print("Monthly Increase:", monthly_increase)
+  # Print results
+  print("Weekly Increase:", weekly_increase)
+  print("Biweekly Increase:", biweekly_increase)
+  print("Monthly Increase:", monthly_increase)
 
-    # update the display
-    # print("Update display...")
-    epaper = DISPLAY(epd=epd, is_pi=IS_PI)
-    epaper.render(citations, hindex, diff, weekly_increase, monthly_increase)
+  # update the display
+  # print("Update display...")
+  epaper = DISPLAY(epd=epd, is_pi=IS_PI)
+  epaper.render(citations, hindex, diff, weekly_increase, monthly_increase)
 
 
-  # DEV = always pop up image on PC
-  if not IS_PI:
-    # output an image
-    print("Output image...")
-    epaper = DISPLAY(epd=epd, is_pi=IS_PI)
-    epaper.render(citations, hindex, diff, weekly_increase, monthly_increase)
+# DEV = always pop up image on PC
+if not IS_PI or IS_DEV:
+  # output an image
+  print("Output image...")
+  epaper = DISPLAY(epd=epd, is_pi=IS_PI)
+  print('citations', citations, 'hindex', hindex, 'diff', diff, 'weekly_increase', weekly_increase, 'monthly_increase', monthly_increase)
+  epaper.render(citations, hindex, diff, weekly_increase, monthly_increase)
