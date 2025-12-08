@@ -81,7 +81,7 @@ def main(argv=None):
 
 def run(scholar_profile):
   if not scholar_profile:
-    scholar_profile = 'ucO_QYQAAAAJ'
+    scholar_profile = '___DEFAULTSCHOLARIDHERE___'
   scholar_url = f'https://scholar.google.com/citations?user={scholar_profile}&hl=en'
 
   print(f"Scraping {scholar_url}...")

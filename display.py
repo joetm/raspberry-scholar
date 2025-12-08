@@ -40,7 +40,7 @@ try:
 except ImportError:
     IS_MICROPY = False
 if not IS_MICROPY:
-    # stub out a minimal fake network module
+    # stub out a minimal fake network module when executing on Ubuntu computer
     class DummyWLAN:
         def __init__(self, *_): pass
         def active(self, *_): return True
@@ -133,6 +133,7 @@ def try_existing_then_known_then_open():
     for ssid, pwd in KNOWN_NETWORKS:
         for attempt in range(CONNECT_RETRIES):
             if connect_to(ssid, password=pwd, timeout=SCAN_TIMEOUT):
+                print(f"Connected to {ssid}")
                 return True, ssid
             time.sleep(0.5 + attempt)
     # 3) Try open networks (strongest-first)
@@ -140,6 +141,7 @@ def try_existing_then_known_then_open():
     for ssid, rssi in open_aps:
         for attempt in range(CONNECT_RETRIES):
             if connect_to(ssid, password=None, timeout=SCAN_TIMEOUT):
+                print(f"Connected to {ssid}")
                 return True, ssid
             time.sleep(0.5 + attempt)
     return False, None
@@ -314,7 +316,7 @@ def scrape_and_display(scholar_profile):
   except: second = None
 
   # check if changes
-  if (latest is None) and (second is None):
+  if (latest is None) or (second is None):
     print("Not enough log entries. Exiting.")
     sys.exit()
 
