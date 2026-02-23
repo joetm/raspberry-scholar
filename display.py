@@ -17,8 +17,9 @@ from PIL import Image, ImageDraw, ImageFont
 # user_agent = ua.random
 user_agent = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0"
 from scholarscrape import main as scrape
-import time, socket
+import time, socket, subprocess
 from known_credentials import KNOWN_NETWORKS
+from wifi_status import draw_wifi_icon, get_wifi_status
 
 
 # ---
@@ -34,37 +35,10 @@ args = parser.parse_args()
 IS_DEV = args.IS_DEV
 print("DEV", IS_DEV)
 # ---
-try:
-    import network  # only exists on MicroPython
-    IS_MICROPY = True
-except ImportError:
-    IS_MICROPY = False
-if not IS_MICROPY:
-    # stub out a minimal fake network module when executing on Ubuntu computer
-    class DummyWLAN:
-        def __init__(self, *_): pass
-        def active(self, *_): return True
-        def isconnected(self): return True
-        def scan(self): return []
-        def connect(self, *_, **__): pass
-        def disconnect(self): pass
-        def config(self, key=None):
-            if key == "essid": return "ubuntu-test"
-            return None
-    network = type("network", (), {"WLAN": DummyWLAN, "STA_IF": 0})()
-# ---
-SCAN_TIMEOUT = 8
-CONNECT_RETRIES = 2
-MIN_RSSI = -90
+CONNECT_TIMEOUT = 15
 INTERNET_CHECK_HOST = ("1.1.1.1", 80)
 INTERNET_CHECK_TIMEOUT = 3
-wlan = network.WLAN(network.STA_IF)
 # ---
-
-def _ensure_active():
-    if not wlan.active():
-        wlan.active(True)
-        time.sleep(0.1)
 
 def _internet_reachable():
     try:
@@ -79,78 +53,103 @@ def _internet_reachable():
         return False
 
 def _current_ssid():
+    """Get the currently connected WiFi SSID, or None."""
     try:
-        # ifconnected and iface supports essid config
-        if wlan.isconnected():
+        result = subprocess.run(
+            ["iwgetid", "-r"], capture_output=True, text=True, timeout=5
+        )
+        ssid = result.stdout.strip()
+        return ssid if ssid else None
+    except Exception:
+        return None
+
+def _scan_networks():
+    """Scan for available WiFi networks.
+    Returns list of (ssid, signal, security) sorted by signal strength.
+    signal: int 0-100. security: str, empty string for open networks.
+    """
+    try:
+        result = subprocess.run(
+            ["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY",
+             "dev", "wifi", "list", "--rescan", "yes"],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode != 0:
+            return []
+        networks = []
+        seen = set()
+        for line in result.stdout.strip().split('\n'):
+            if not line:
+                continue
+            parts = line.rsplit(':', 2)
+            if len(parts) < 3:
+                continue
+            ssid, signal_str, security = parts
+            if not ssid or ssid in seen:
+                continue
+            seen.add(ssid)
             try:
-                essid = wlan.config("essid")
-                if isinstance(essid, (bytes, bytearray)):
-                    essid = essid.decode()
-                return essid
-            except Exception: return None
-    except Exception: pass
-    return None
+                signal = int(signal_str)
+            except ValueError:
+                signal = 0
+            networks.append((ssid, signal, security))
+        networks.sort(key=lambda x: x[1], reverse=True)
+        return networks
+    except Exception:
+        return []
 
-def _scan_open_networks():
-    _ensure_active()
-    aps = wlan.scan()
-    open_aps = []
-    for ap in aps:
-        ssid = ap[0].decode() if isinstance(ap[0], (bytes,bytearray)) else str(ap[0])
-        rssi = ap[3]
-        security = ap[4]
-        if rssi < MIN_RSSI:
+def _connect_to(ssid, password=None):
+    """Connect to a WiFi network via nmcli. Returns True if internet reachable after."""
+    try:
+        cmd = ["nmcli", "dev", "wifi", "connect", ssid]
+        if password:
+            cmd += ["password", password]
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=CONNECT_TIMEOUT
+        )
+        if result.returncode != 0:
+            print(f"nmcli connect failed for {ssid}: {result.stderr.strip()}")
+            return False
+        time.sleep(2)
+        return _internet_reachable()
+    except Exception:
+        return False
+
+def connect_wifi():
+    """Connect to WiFi. Priority: existing > open networks > known networks.
+    Returns (success: bool, ssid: str or None).
+    """
+    # 1) Already connected with internet? Keep it.
+    if _internet_reachable():
+        ssid = _current_ssid()
+        return True, ssid or "connected"
+
+    # 2) Scan and try open networks (strongest signal first)
+    networks = _scan_networks()
+    for ssid, signal, security in networks:
+        if security:
             continue
-        if security == 0:
-            open_aps.append((ssid, rssi))
-    open_aps.sort(key=lambda x: x[1], reverse=True)
-    seen = set(); unique = []
-    for ssid, rssi in open_aps:
-        if ssid not in seen: seen.add(ssid); unique.append((ssid, rssi))
-    return unique
+        print(f"Trying open network: {ssid} (signal {signal})")
+        if _connect_to(ssid):
+            return True, ssid
 
-def connect_to(ssid, password=None, timeout=SCAN_TIMEOUT):
-    _ensure_active()
-    try: wlan.disconnect()
-    except Exception: pass
-    if password: wlan.connect(ssid, password)
-    else: wlan.connect(ssid)
-    start = time.time()
-    while time.time() - start < timeout:
-        if wlan.isconnected():
-            if _internet_reachable(): return True
-            else: return False
-        time.sleep(0.2)
-    return False
+    # 3) Try known/hardcoded networks
+    for ssid, password in KNOWN_NETWORKS:
+        print(f"Trying known network: {ssid}")
+        if _connect_to(ssid, password=password):
+            return True, ssid
 
-def try_existing_then_known_then_open():
-    _ensure_active()
-    # 1) If already connected and internet works, keep it
-    if wlan.isconnected() and _internet_reachable():
-        cur = _current_ssid()
-        return True, cur or "connected (unknown ssid)"
-    # 2) Try known networks (priority order)
-    for ssid, pwd in KNOWN_NETWORKS:
-        for attempt in range(CONNECT_RETRIES):
-            if connect_to(ssid, password=pwd, timeout=SCAN_TIMEOUT):
-                print(f"Connected to {ssid}")
-                return True, ssid
-            time.sleep(0.5 + attempt)
-    # 3) Try open networks (strongest-first)
-    open_aps = _scan_open_networks()
-    for ssid, rssi in open_aps:
-        for attempt in range(CONNECT_RETRIES):
-            if connect_to(ssid, password=None, timeout=SCAN_TIMEOUT):
-                print(f"Connected to {ssid}")
-                return True, ssid
-            time.sleep(0.5 + attempt)
     return False, None
 
-def disconnect():
-    try: wlan.disconnect()
-    except Exception: pass
-    try: wlan.active(False)
-    except Exception: pass
+def disconnect_wifi():
+    """Disconnect WiFi to save battery."""
+    try:
+        subprocess.run(
+            ["nmcli", "dev", "disconnect", "wlan0"],
+            capture_output=True, timeout=5
+        )
+    except Exception:
+        pass
 
 
 
@@ -162,22 +161,12 @@ class FAKE_EPD:
         self.height = height
 
 if not IS_DEV:
-  try:
-    from waveshare_epd import epd2in13_V4
-    epd = epd2in13_V4.EPD()
-    IS_PI = True
-    # logging.info("init and Clear")
-
-    import network, time, credentials
-    wlan = network.WLAN(network.STA_IF)
-    wlan.active(True)
-    wlan.connect(credentials.ssid, credentials.password)
-    while not wlan.isconnected(): time.sleep(1)
-    print("Connected:", wlan.ifconfig())
-
-  except:
-    IS_DEV = True
-    pass
+    try:
+        from waveshare_epd import epd2in13_V4
+        epd = epd2in13_V4.EPD()
+        IS_PI = True
+    except Exception:
+        IS_DEV = True
 
 if IS_DEV:
     IS_PI = False
@@ -258,11 +247,18 @@ class DISPLAY:
         y0 = y1 - int(H * scale)
         draw.rectangle([(x0, y0), (x1, y1)], fill="black", outline=0)
 
+    # Draw WiFi status icon in upper-right corner
+    connected, bars = get_wifi_status()
+    draw_wifi_icon(draw, connected, bars)
+
+    # Save pre-rotation image for wifi_status.py partial updates
+    self.image.save(os.path.join(BASEDIR, "display_state.png"))
+
     if self.is_pi:
       self.image = self.image.rotate(180) # rotate
       self.epd.init()
       self.epd.Clear(0xFF)
-      self.epd.display(epd.getbuffer(self.image))
+      self.epd.displayPartBaseImage(epd.getbuffer(self.image))
       self.epd.sleep()
     else:
       self.image.save("output.png")
@@ -365,11 +361,11 @@ def scrape_and_display(scholar_profile):
 
 
 def main(scrape_callback, scholar_profile, disconnect_after=True):
-    ok, used = try_existing_then_known_then_open()
+    ok, used = connect_wifi()
     if not ok: return False, "no-network"
     try: scrape_callback(scholar_profile)
     finally:
-        if disconnect_after: disconnect()
+        if disconnect_after: disconnect_wifi()
     return True, used
 
 
